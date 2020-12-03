@@ -1,5 +1,7 @@
 const path = require("path");
 const webpack = require("webpack");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 
 module.exports = {
   entry: "./client/src/index.js",
@@ -20,14 +22,20 @@ module.exports = {
   resolve: { extensions: [".js", ".jsx"] },
   output: {
     path: path.resolve(__dirname, "build/"),
-    publicPath: "/build/",
     filename: "bundle.js",
   },
   devServer: {
-    contentBase: path.join(__dirname, "client/public/"),
+    //contentBase: path.join(__dirname, "client/public/"),
     port: 3000,
-    publicPath: "http://localhost:3000/build/",
+    publicPath: "http://localhost:3000/",
     hotOnly: true,
   },
-  plugins: [new webpack.HotModuleReplacementPlugin()],
+  plugins: [
+    new CleanWebpackPlugin(),
+    new HtmlWebpackPlugin({
+      filename: "index.html",
+      template: "client/public/index.html",
+    }),
+    new webpack.HotModuleReplacementPlugin(),
+  ],
 };
