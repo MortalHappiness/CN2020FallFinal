@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define BUFSIZE 8192
 #define BACKLOG 10 // how many pending connections queue will hold
 
 #define ERR_EXIT(a) \
@@ -32,7 +33,11 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in server_addr;
     struct sockaddr_in conn_addr;
     socklen_t sin_size;
-    int yes = 1;
+    char buf[BUFSIZE];
+    int n, yes = 1;
+    char *pch1, *pch2;
+    FILE *fp;
+    long filesize;
 
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         ERR_EXIT("socket");
@@ -59,10 +64,81 @@ int main(int argc, char *argv[]) {
             perror("accept");
             continue;
         }
-        printf("Got connection from %s\n", inet_ntoa(conn_addr.sin_addr));
-        if (write(conn_fd, "Hello, world!\n", 14) == -1)
-            perror("send");
+        // printf("Got connection from %s\n", inet_ntoa(conn_addr.sin_addr));
 
+        if ((n = read(conn_fd, buf, BUFSIZE - 1)) < 0) {
+            perror("read");
+        }
+        pch1 = strtok(buf, " ");
+        pch2 = strtok(NULL, " ");
+
+        if (strcmp(pch1, "GET") != 0) {
+            n = snprintf(buf, BUFSIZE,
+                         "HTTP/1.0 400 Bad Request\r\n"
+                         "Content-Type: text/plain; charset=utf-8\r\n"
+                         "Content-Length: 11\r\n"
+                         "\r\n"
+                         "Bad Request");
+            if (write(conn_fd, buf, n) < 0)
+                perror("write");
+            close(conn_fd);
+            continue;
+        }
+
+        if (strcmp(pch2, "/") == 0) {
+            fp = fopen("build/index.html", "rb");
+            if (fp == NULL)
+                ERR_EXIT("fopen");
+            fseek(fp, 0, SEEK_END);
+            filesize = ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            n = snprintf(buf, BUFSIZE,
+                         "HTTP/1.0 200 OK\r\n"
+                         "Content-Type: text/html; charset=utf-8\r\n"
+                         "Content-Length: %ld\r\n"
+                         "\r\n",
+                         filesize);
+            if (write(conn_fd, buf, n) < 0)
+                perror("write");
+            while ((n = fread(buf, 1, BUFSIZE, fp)) > 0) {
+                if (write(conn_fd, buf, n) < 0)
+                    perror("write");
+            }
+            fclose(fp);
+            close(conn_fd);
+            continue;
+        }
+        if (strcmp(pch2, "/bundle.js") == 0) {
+            fp = fopen("build/bundle.js", "rb");
+            if (fp == NULL)
+                ERR_EXIT("fopen");
+            fseek(fp, 0, SEEK_END);
+            filesize = ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            n = snprintf(buf, BUFSIZE,
+                         "HTTP/1.0 200 OK\r\n"
+                         "Content-Type: text/javascript; charset=utf-8\r\n"
+                         "Content-Length: %ld\r\n"
+                         "\r\n",
+                         filesize);
+            if (write(conn_fd, buf, n) < 0)
+                perror("write");
+            while ((n = fread(buf, 1, BUFSIZE, fp)) > 0) {
+                if (write(conn_fd, buf, n) < 0)
+                    perror("write");
+            }
+            fclose(fp);
+            close(conn_fd);
+            continue;
+        }
+        n = snprintf(buf, BUFSIZE,
+                     "HTTP/1.0 404 Not Found\r\n"
+                     "Content-Type: text/plain; charset=utf-8\r\n"
+                     "Content-Length: 9\r\n"
+                     "\r\n"
+                     "Not Found");
+        if (write(conn_fd, buf, n) < 0)
+            perror("write");
         close(conn_fd);
     }
 
