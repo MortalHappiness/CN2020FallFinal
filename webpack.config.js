@@ -29,6 +29,9 @@ module.exports = {
     port: 3000,
     publicPath: "http://localhost:3000/",
     hotOnly: true,
+    proxy: {
+      "/api": "http://localhost:8000",
+    },
   },
   plugins: [
     new CleanWebpackPlugin(),

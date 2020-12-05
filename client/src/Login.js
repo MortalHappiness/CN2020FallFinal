@@ -1,17 +1,26 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useContext,
+} from "react";
 import { useHistory } from "react-router-dom";
+
+import { makeStyles } from "@material-ui/core/styles";
 
 import Avatar from "@material-ui/core/Avatar";
 import Button from "@material-ui/core/Button";
-import CssBaseline from "@material-ui/core/CssBaseline";
-import TextField from "@material-ui/core/TextField";
-import Link from "@material-ui/core/Link";
-import Grid from "@material-ui/core/Grid";
-import LockOutlinedIcon from "@material-ui/icons/LockOutlined";
-import Typography from "@material-ui/core/Typography";
-import { makeStyles } from "@material-ui/core/styles";
 import Container from "@material-ui/core/Container";
+import CssBaseline from "@material-ui/core/CssBaseline";
 import FormHelperText from "@material-ui/core/FormHelperText";
+import Grid from "@material-ui/core/Grid";
+import Link from "@material-ui/core/Link";
+import LockOutlinedIcon from "@material-ui/icons/LockOutlined";
+import TextField from "@material-ui/core/TextField";
+import Typography from "@material-ui/core/Typography";
+
+import { UsernameContext } from "./App";
 
 const useStyles = makeStyles((theme) => ({
   paper: {
@@ -39,9 +48,11 @@ const useStyles = makeStyles((theme) => ({
 export default function SignIn() {
   const classes = useStyles();
 
+  const [username, setUsername] = useContext(UsernameContext);
+
   const history = useHistory();
 
-  const [state, setState] = React.useState({
+  const [state, setState] = useState({
     username: "",
     password: "",
   });
@@ -79,10 +90,14 @@ export default function SignIn() {
         },
         redirect: "manual",
         referrerPolicy: "no-referrer",
-        body: `username=${state.username}&password=${state.password}`,
+        body: `username=${encodeURIComponent(
+          state.username
+        )}&password=${encodeURIComponent(state.password)}`,
       });
       if (isMounted.current) setIsSending(false);
       if (res.ok) {
+        const json = await res.json();
+        setUsername(json.username);
         history.push("/");
         setError(null);
       } else {
@@ -90,7 +105,7 @@ export default function SignIn() {
         setError(json.msg);
       }
     },
-    [isSending, state, history]
+    [isSending, state, history, setUsername]
   );
 
   return (
@@ -101,7 +116,7 @@ export default function SignIn() {
           <LockOutlinedIcon />
         </Avatar>
         <Typography component="h1" variant="h5">
-          Sign in
+          Login
         </Typography>
         <form className={classes.form} onSubmit={handleSubmit}>
           <TextField
@@ -139,7 +154,7 @@ export default function SignIn() {
             color="primary"
             className={classes.submit}
           >
-            Sign In
+            Login
           </Button>
           <Grid container justify="flex-end">
             <Grid item>

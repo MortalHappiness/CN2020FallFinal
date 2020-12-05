@@ -2,7 +2,6 @@ import os
 import sys
 import json
 import uuid
-import html
 from socket import *
 import sqlite3
 from urllib.parse import urlparse, parse_qs
@@ -100,14 +99,14 @@ def sendfile(conn_sock, filename):
 
 
 def parse_form_data(header, body):
-    media_type = header.get("Content-Type", None)
+    media_type = header.get("content-type", None)
     if media_type != "application/x-www-form-urlencoded":
         return
     return parse_qs(body)
 
 
 def get_session_id(header):
-    cookies = header.get("Cookie", None)
+    cookies = header.get("cookie", None)
     if cookies is not None:
         cookies = cookies.split(";")
         for cookie in cookies:
@@ -125,6 +124,27 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
         if path == "/bundle.js":
             sendfile(conn_sock, "build/bundle.js")
             return
+        if path == "/api/users":
+            cursor = sql_conn.execute(
+                "SELECT username FROM accounts"
+            )
+            accounts = cursor.fetchall()
+            users = [x[0] for x in accounts]
+            end(conn_sock, 200, json.dumps(users))
+            return
+        if path == "/api/username":
+            session_id = get_session_id(header)
+            username = ""
+            if session_id is not None:
+                cursor = sql_conn.execute(
+                    "SELECT username FROM sessions WHERE id=?",
+                    (session_id,)
+                )
+                session = cursor.fetchone()
+                if session is not None:
+                    username = session[0]
+            end(conn_sock, 200, json.dumps({"username": username}))
+            return
         if parsed_url.path == "/api/messages":
             query = parse_qs(parsed_url.query)
             username = query.get("username", None)[0]
@@ -140,12 +160,13 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
                 abort(conn_sock, 404)
                 return
             cursor = sql_conn.execute(
-                "SELECT user_from, message from messages WHERE user_to=?",
+                "SELECT id, user_from, message FROM messages WHERE user_to=? "
+                "ORDER BY id DESC",
                 (username,)
             )
             messages = cursor.fetchall()
-            messages = [{"user_from": user_from, "message": message}
-                        for user_from, message in messages]
+            messages = [dict(zip(("id", "user_from", "message"), message))
+                        for message in messages]
             end(conn_sock, 200, json.dumps(messages))
             return
         abort(conn_sock, 404)
@@ -232,7 +253,7 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
         if path == "/api/send-message":
             session_id = get_session_id(header)
             if session_id is None:
-                abort(conn_sock, 403)
+                abort(conn_sock, 403, "Login first to send message!")
                 return
             cursor = sql_conn.execute(
                 "SELECT username FROM sessions WHERE id=?",
@@ -240,20 +261,20 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
             )
             session = cursor.fetchone()
             if session is None:
-                abort(conn_sock, 403)
+                abort(conn_sock, 403, "Login first to send message!")
                 return
             user_from = session[0]
             form_data = parse_form_data(header, body)
             if form_data is None:
-                abort(conn_sock, 400)
+                abort(conn_sock, 400, "No form body is found!")
                 return
             if "user-to" not in form_data or "message" not in form_data:
-                abort(conn_sock, 400)
+                abort(conn_sock, 400, "Please specify user-to and message")
                 return
             user_to = form_data["user-to"][0]
             message = form_data["message"][0]
             if user_from == user_to:
-                abort(conn_sock, 400)
+                abort(conn_sock, 400, "You cannot send message to yourself!")
                 return
             cursor = sql_conn.execute(
                 "SELECT * FROM accounts WHERE username=?",
@@ -261,15 +282,19 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
             )
             account = cursor.fetchone()
             if account is None:
-                abort(conn_sock, 400)
+                abort(conn_sock, 400, "The user does not exist!")
                 return
             with sql_conn:
-                sql_conn.execute(
+                cursor = sql_conn.execute(
                     "INSERT INTO messages VALUES (?,?,?,?)",
-                    (None, user_from, user_to, html.escape(message))
+                    (None, user_from, user_to, message)
                 )
-            end(conn_sock, 201)
-            return
+                end(conn_sock, 201,
+                    json.dumps({"id": cursor.lastrowid,
+                                "user_from": user_from,
+                                "message": message})
+                    )
+                return
         abort(conn_sock, 400)
         return
 
@@ -295,7 +320,7 @@ def handle_request(conn_sock, sql_conn, req):
     for line in lines[1:split_idx]:
         try:
             k, v = line.split(":", 1)
-            header[k.strip()] = v.strip()
+            header[k.strip().lower()] = v.strip()
         except ValueError:
             abort(conn_sock, 400)
             return
@@ -311,9 +336,12 @@ def main(port, sql_conn):
         while True:
             conn_sock, addr = s.accept()
             with conn_sock:
-                print("Got connection from", addr)
-                req = conn_sock.recv(BUFSIZE).decode()
-                handle_request(conn_sock, sql_conn, req)
+                # print("Got connection from", addr)
+                try:
+                    req = conn_sock.recv(BUFSIZE).decode()
+                    handle_request(conn_sock, sql_conn, req)
+                except:
+                    abort(conn_sock, 400)
 
 
 if __name__ == "__main__":
