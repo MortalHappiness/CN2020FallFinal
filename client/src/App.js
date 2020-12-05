@@ -7,6 +7,8 @@ import {
   Redirect,
 } from "react-router-dom";
 
+import Login from "./Login";
+import Register from "./Register";
 import Profile from "./Profile";
 
 function App() {
@@ -15,6 +17,12 @@ function App() {
       <Switch>
         <Route exact path="/">
           <h1>hi</h1>
+        </Route>
+        <Route exact path="/login">
+          <Login />
+        </Route>
+        <Route exact path="/register">
+          <Register />
         </Route>
         <Route exact path="/profile">
           <Profile />
