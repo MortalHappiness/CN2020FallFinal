@@ -9,6 +9,7 @@ import {
 
 import TopBar from "./TopBar";
 import Home from "./Home";
+import Stream from "./Stream";
 import Login from "./Login";
 import Register from "./Register";
 import Profile from "./Profile";
@@ -34,6 +35,9 @@ function App() {
         <Switch>
           <Route exact path="/">
             <Home />
+          </Route>
+          <Route exact path="/stream">
+            <Stream />
           </Route>
           <Route exact path="/login">
             <Login />

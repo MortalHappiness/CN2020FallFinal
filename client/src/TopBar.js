@@ -72,6 +72,15 @@ export default function TopBar() {
         >
           CN2020 Final
         </Link>
+        <Link
+          href="#/stream"
+          color="textPrimary"
+          variant="button"
+          underline="none"
+          className={classes.link}
+        >
+          Streaming
+        </Link>
         {username !== null &&
           (username ? (
             <>

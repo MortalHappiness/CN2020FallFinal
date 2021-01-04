@@ -21,7 +21,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-export default function Pricing() {
+export default function Home() {
   const classes = useStyles();
 
   const [users, setUsers] = useState(null);

@@ -25,14 +25,18 @@ class ClientThread(threading.Thread):
     def run(self):
         sql_conn = sqlite3.connect(self.db_path)
         with self.conn_sock as conn_sock:
-            print("Got connection from", self.addr)
+            # print("Got connection from", self.addr)
             try:
                 req = conn_sock.recv(BUFSIZE).decode()
                 handle_request(conn_sock, sql_conn, req)
             except ssl.SSLError:
                 pass
+            except ConnectionResetError:
+                pass
             else:
                 abort(conn_sock, 500)
+            finally:
+                sql_conn.close()
 
 
 def abort(conn_sock, status, err_msg=None):
@@ -97,8 +101,10 @@ def end(conn_sock, status, body="", option=None):
 
 def sendfile(conn_sock, filename):
     media_types = {
-        ".html": "text/html",
-        ".js": "text/javascript",
+        ".html": "text/html; charset=utf-8",
+        ".js": "text/javascript; charset=utf-8",
+        ".mp4": "video/mp4",
+        ".mp3": "audio/mpeg",
     }
     ext = os.path.splitext(filename)[1]
     assert ext in media_types
@@ -110,7 +116,7 @@ def sendfile(conn_sock, filename):
             fin.seek(0, os.SEEK_SET)
             res = (
                 f"HTTP/1.0 200 OK\r\n"
-                f"Content-Type: {media_type}; charset=utf-8\r\n"
+                f"Content-Type: {media_type}\r\n"
                 f"Content-Length: {filesize}\r\n"
                 f"\r\n"
             )
@@ -145,6 +151,12 @@ def handle_routes(conn_sock, sql_conn, method, path, header, body):
             return
         if path == "/bundle.js":
             sendfile(conn_sock, "build/bundle.js")
+            return
+        if path == "/static/video.mp4":
+            sendfile(conn_sock, "static/video.mp4")
+            return
+        if path == "/static/music.mp3":
+            sendfile(conn_sock, "static/music.mp3")
             return
         if path == "/api/users":
             cursor = sql_conn.execute(
@@ -382,7 +394,4 @@ if __name__ == "__main__":
         print(f"The database file '{db_path}' does not exists")
         sys.exit(1)
 
-    try:
-        main(port, db_path, certfile)
-    finally:
-        sql_conn.close()
+    main(port, db_path, certfile)
