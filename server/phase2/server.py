@@ -5,12 +5,29 @@ import uuid
 from socket import *
 import sqlite3
 from urllib.parse import urlparse, parse_qs
+import threading
 
 # ========================================
 
 BUFSIZE = 4096
 
 # ========================================
+
+
+class ClientThread(threading.Thread):
+    def __init__(self, conn_sock, addr):
+        super().__init__()
+        self.conn_sock = conn_sock
+        self.addr = addr
+
+    def run(self):
+        with self.conn_sock as conn_sock:
+            print("Got connection from", self.addr)
+            try:
+                req = conn_sock.recv(BUFSIZE).decode()
+                handle_request(conn_sock, sql_conn, req)
+            except:
+                abort(conn_sock, 400)
 
 
 def abort(conn_sock, status, err_msg=None):
@@ -335,13 +352,8 @@ def main(port, sql_conn):
         print("Server listening at port", port)
         while True:
             conn_sock, addr = s.accept()
-            with conn_sock:
-                # print("Got connection from", addr)
-                try:
-                    req = conn_sock.recv(BUFSIZE).decode()
-                    handle_request(conn_sock, sql_conn, req)
-                except:
-                    abort(conn_sock, 400)
+            new_thread = ClientThread(conn_sock, addr)
+            new_thread.start()
 
 
 if __name__ == "__main__":
