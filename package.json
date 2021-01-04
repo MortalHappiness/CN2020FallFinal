@@ -9,7 +9,7 @@
     "build": "webpack --mode production",
     "test": "echo \"Error: no test specified\" && exit 1",
     "phase1": "cd server/phase1 && make && cd - && echo && ./server/phase1/server 8000",
-    "phase2": "python server/phase2/server.py 8000 server/phase2/cn2020final.db"
+    "phase2": "python server/phase2/server.py 8000 server/phase2/cn2020final.db server/phase2/sslcert/localhost.pem"
   },
   "repository": {
     "type": "git",

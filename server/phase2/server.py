@@ -6,6 +6,7 @@ from socket import *
 import sqlite3
 from urllib.parse import urlparse, parse_qs
 import threading
+import ssl
 
 # ========================================
 
@@ -15,19 +16,23 @@ BUFSIZE = 4096
 
 
 class ClientThread(threading.Thread):
-    def __init__(self, conn_sock, addr):
+    def __init__(self, conn_sock, addr, db_path):
         super().__init__()
         self.conn_sock = conn_sock
         self.addr = addr
+        self.db_path = db_path
 
     def run(self):
+        sql_conn = sqlite3.connect(self.db_path)
         with self.conn_sock as conn_sock:
             print("Got connection from", self.addr)
             try:
                 req = conn_sock.recv(BUFSIZE).decode()
                 handle_request(conn_sock, sql_conn, req)
-            except:
-                abort(conn_sock, 400)
+            except ssl.SSLError:
+                pass
+            else:
+                abort(conn_sock, 500)
 
 
 def abort(conn_sock, status, err_msg=None):
@@ -344,21 +349,25 @@ def handle_request(conn_sock, sql_conn, req):
     handle_routes(conn_sock, sql_conn, method, path, header, body)
 
 
-def main(port, sql_conn):
+def main(port, db_path, certfile):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile)
     with socket(AF_INET, SOCK_STREAM) as s:
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        s.bind(("", port))
-        s.listen(1)
+        s.bind(("localhost", port))
+        s.listen(20)
         print("Server listening at port", port)
-        while True:
-            conn_sock, addr = s.accept()
-            new_thread = ClientThread(conn_sock, addr)
-            new_thread.start()
+        with context.wrap_socket(s, server_side=True,
+                                 do_handshake_on_connect=False) as ssock:
+            while True:
+                conn_sock, addr = ssock.accept()
+                new_thread = ClientThread(conn_sock, addr, db_path)
+                new_thread.start()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python %s [port] [db_path]" % sys.argv[0])
+    if len(sys.argv) != 4:
+        print("Usage: python %s [port] [db_path] [certfile]" % sys.argv[0])
         sys.exit(1)
     try:
         port = int(sys.argv[1])
@@ -368,12 +377,12 @@ if __name__ == "__main__":
         print("Invalid port number:", sys.argv[1])
         sys.exit(1)
     db_path = sys.argv[2]
+    certfile = sys.argv[3]
     if not os.path.exists(db_path):
         print(f"The database file '{db_path}' does not exists")
         sys.exit(1)
 
-    sql_conn = sqlite3.connect(db_path)
     try:
-        main(port, sql_conn)
+        main(port, db_path, certfile)
     finally:
         sql_conn.close()

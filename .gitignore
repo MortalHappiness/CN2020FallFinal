@@ -6,6 +6,7 @@
 
 server/phase1/server
 *.db
+server/phase2/sslcert
 
 ### C ###
 # Prerequisites
