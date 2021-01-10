@@ -366,7 +366,7 @@ def main(port, db_path, certfile):
     context.load_cert_chain(certfile)
     with socket(AF_INET, SOCK_STREAM) as s:
         s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        s.bind(("localhost", port))
+        s.bind(("0.0.0.0", port))
         s.listen(20)
         print("Server listening at port", port)
         with context.wrap_socket(s, server_side=True,
